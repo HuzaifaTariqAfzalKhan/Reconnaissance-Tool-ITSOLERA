@@ -6,6 +6,7 @@ import subprocess
 import logging
 from datetime import datetime
 import os
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -32,26 +33,31 @@ def get_dns_records(domain):
     return records
 
 # Subdomain Enumeration
-def get_subdomains(domain):
+def get_subdomains(domain, retries=3):
     url = f"https://crt.sh/?q=%25.{domain}&output=json"
     subdomains = set()
-    try:
-        r = requests.get(url, timeout=15)
-        if r.status_code == 200:
-            try:
-                data = r.json()
-                for entry in data:
-                    name = entry.get('name_value', '')
-                    for sub in name.split('\n'):
-                        if domain in sub:
-                            subdomains.add(sub.strip())
-            except Exception as e:
-                logging.error(f"Subdomain parsing failed: {e}")
-                return ["Subdomain response was invalid or blocked"]
-    except Exception as e:
-        logging.error(f"Subdomain enumeration failed: {e}")
-        return ["Subdomain API unreachable or blocked"]
-    return list(subdomains) if subdomains else ["No subdomains found or access restricted"]
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, timeout=15)
+            if r.status_code == 200:
+                try:
+                    data = r.json()
+                    for entry in data:
+                        name = entry.get('name_value', '')
+                        for sub in name.split('\n'):
+                            if domain in sub:
+                                subdomains.add(sub.strip())
+                    return list(subdomains) if subdomains else ["No subdomains found or access restricted"]
+                except Exception as e:
+                    logging.error(f"[ERROR] Subdomain parsing failed: {e}")
+                    return ["Subdomain response was invalid or blocked"]
+        except requests.exceptions.Timeout:
+            logging.warning(f"[WARN] crt.sh timed out. Retrying {attempt + 1}/{retries}...")
+            time.sleep(2)
+        except Exception as e:
+            logging.error(f"[ERROR] Subdomain enumeration failed: {e}")
+            return ["Subdomain API unreachable or blocked"]
+    return ["Subdomain lookup failed after multiple retries"]
 
 # Port Scanning with Nmap
 def scan_ports_nmap(domain):
@@ -152,7 +158,7 @@ if __name__ == "__main__":
                 banners = {port: grab_banner(resolved_ip, port) for port in ports}
                 report['banners'] = banners
             except socket.gaierror:
-                print("[Error] Failed to resolve domain. Skipping banner grabbing.")
+                print("  Skipping banner grabbing as it does not contain it.")
                 report['banners'] = {"error": "Could not resolve domain to IP"}
 
         elif choice == "6":
