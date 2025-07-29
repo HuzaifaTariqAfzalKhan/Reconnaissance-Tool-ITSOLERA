@@ -124,7 +124,7 @@ def write_report(domain, data):
             else:
                 f.write(f"{content}\n")
             f.write("\n")
-    logging.info(f"[INFO] Report saved as {filename}")
+    logging.info(f"Report saved as {filename}")
     return filename
 
 # Check Report Section
