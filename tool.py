@@ -12,24 +12,30 @@ import time
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 # WHOIS Lookup
-def whois_lookup(domain):
-    try:
-        info = whois.whois(domain)
-        return str(info)
-    except Exception as e:
-        msg = f"WHOIS lookup failed: {e}"
-        logging.error(msg)
-        return msg
+def whois_lookup(domain, retries=3):
+    for attempt in range(retries):
+        try:
+            info = whois.whois(domain)
+            return str(info)
+        except Exception as e:
+            logging.warning(f"WHOIS attempt {attempt+1}/{retries} failed: {e}")
+            time.sleep(2)
+    return "WHOIS lookup failed after multiple attempts."
 
 # DNS Records
-def get_dns_records(domain):
+def get_dns_records(domain, retries=3):
     records = {}
     for record_type in ['A', 'MX', 'TXT', 'NS']:
-        try:
-            answers = dns.resolver.resolve(domain, record_type)
-            records[record_type] = [r.to_text() for r in answers]
-        except Exception:
-            records[record_type] = ["Not available or restricted"]
+        for attempt in range(retries):
+            try:
+                answers = dns.resolver.resolve(domain, record_type)
+                records[record_type] = [r.to_text() for r in answers]
+                break
+            except Exception:
+                if attempt == retries - 1:
+                    records[record_type] = ["Not available or restricted"]
+                else:
+                    time.sleep(1)
     return records
 
 # Subdomain Enumeration
@@ -60,40 +66,45 @@ def get_subdomains(domain, retries=3):
     return ["Subdomain lookup failed after multiple retries"]
 
 # Port Scanning with Nmap
-def scan_ports_nmap(domain):
-    try:
-        output = subprocess.check_output(['nmap', '-T4', '-F', domain], stderr=subprocess.DEVNULL).decode()
-        return output
-    except Exception as e:
-        msg = f"Nmap scan failed or blocked: {e}"
-        logging.error(msg)
-        return msg
+def scan_ports_nmap(domain, retries=3):
+    for attempt in range(retries):
+        try:
+            output = subprocess.check_output(['nmap', '-T4', '-F', domain], stderr=subprocess.DEVNULL).decode()
+            return output
+        except Exception as e:
+            logging.warning(f"Nmap attempt {attempt+1}/{retries} failed: {e}")
+            time.sleep(2)
+    return "Nmap scan failed after multiple attempts."
 
 # Banner Grabbing
-def grab_banner(ip, port):
-    try:
-        s = socket.socket()
-        s.settimeout(2)
-        s.connect((ip, port))
-        banner = s.recv(1024).decode(errors='ignore').strip()
-        s.close()
-        return banner if banner else "No banner returned or restricted"
-    except socket.timeout:
-        return "Timeout - No response"
-    except Exception as e:
-        return f"Error: {e}"
+def grab_banner(ip, port, retries=3):
+    for attempt in range(retries):
+        try:
+            s = socket.socket()
+            s.settimeout(2)
+            s.connect((ip, port))
+            banner = s.recv(1024).decode(errors='ignore').strip()
+            s.close()
+            return banner if banner else "No banner returned or restricted"
+        except socket.timeout:
+            time.sleep(1)
+        except Exception as e:
+            if attempt == retries - 1:
+                return f"Error: {e}"
+            time.sleep(1)
+    return "No banner retrieved after multiple attempts"
 
 # Technology Detection
-
-def detect_technologies(domain):
-    headers = {}
-    for scheme in ["https", "http"]:
-        try:
-            r = requests.get(f"{scheme}://{domain}", timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-            return dict(r.headers)
-        except:
-            continue
-    return {"Error": "Could not connect or headers restricted"}
+def detect_technologies(domain, retries=3):
+    for attempt in range(retries):
+        for scheme in ["https", "http"]:
+            try:
+                r = requests.get(f"{scheme}://{domain}", timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+                return dict(r.headers)
+            except:
+                continue
+        time.sleep(2)
+    return {"Error": "Could not connect or headers restricted after multiple attempts"}
 
 # Write Report
 def write_report(domain, data):
@@ -158,7 +169,7 @@ if __name__ == "__main__":
                 banners = {port: grab_banner(resolved_ip, port) for port in ports}
                 report['banners'] = banners
             except socket.gaierror:
-                print("  Skipping banner grabbing as it does not contain it.")
+                print("[Error] Failed to resolve domain. Skipping banner grabbing.")
                 report['banners'] = {"error": "Could not resolve domain to IP"}
 
         elif choice == "6":
