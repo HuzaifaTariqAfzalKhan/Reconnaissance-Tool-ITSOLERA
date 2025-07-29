@@ -39,12 +39,12 @@ def get_dns_records(domain, retries=3):
     return records
 
 # Subdomain Enumeration
-def get_subdomains(domain, retries=3):
+def get_subdomains(domain, retries=5):
     url = f"https://crt.sh/?q=%25.{domain}&output=json"
     subdomains = set()
     for attempt in range(retries):
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(url, timeout=25)
             if r.status_code == 200:
                 try:
                     data = r.json()
@@ -124,41 +124,68 @@ def write_report(domain, data):
             else:
                 f.write(f"{content}\n")
             f.write("\n")
-    logging.info(f"Report saved as {filename}")
+    logging.info(f"[INFO] Report saved as {filename}")
+    return filename
+
+# Check Report Section
+def check_report_section(report_path, section_name):
+    try:
+        with open(report_path, 'r') as f:
+            content = f.read()
+            if section_name.upper() in content:
+                section_data = content.split(f"--- {section_name.upper()} ---")[1].split('\n\n')[0]
+                if "Module not executed" in section_data or "failed" in section_data.lower():
+                    print(f"[!] {section_name} module returned no useful data.")
+                else:
+                    print(f"[✓] {section_name} results successfully added to report.")
+    except Exception as e:
+        print(f"[Error] Could not verify report section {section_name}: {e}")
 
 # Main Menu
 if __name__ == "__main__":
-    domain = input("Enter the target domain (e.g., example.com): ")
+    domain = input("\n🌐 Enter the target domain (e.g., example.com): ")
     report = {}
     resolved_ip = None
+    report_path = f"reports/{domain}_report.txt"
 
     while True:
-        print("\n--- Recon Menu ---")
-        print("1. WHOIS Lookup")
-        print("2. DNS Enumeration")
-        print("3. Subdomain Enumeration")
-        print("4. Port Scan with Nmap")
-        print("5. Banner Grabbing")
-        print("6. Technology Detection")
-        print("7. Generate Report and Exit")
+        print("\n======================")
+        print("  🛠️  RECON TOOL MENU")
+        print("======================")
+        print("1️⃣  WHOIS Lookup")
+        print("2️⃣  DNS Enumeration")
+        print("3️⃣  Subdomain Enumeration")
+        print("4️⃣  Port Scan with Nmap")
+        print("5️⃣  Banner Grabbing")
+        print("6️⃣  Technology Detection")
+        print("7️⃣  Generate Report")
+        print("0️⃣  Exit")
 
-        choice = input("Select an option (1-7): ")
+        choice = input("\n👉 Select an option (0-7): ")
 
         if choice == "1":
             print("[+] Running WHOIS lookup...")
             report['whois'] = whois_lookup(domain)
+            write_report(domain, report)
+            check_report_section(report_path, 'whois')
 
         elif choice == "2":
             print("[+] Running DNS Enumeration...")
             report['dns'] = get_dns_records(domain)
+            write_report(domain, report)
+            check_report_section(report_path, 'dns')
 
         elif choice == "3":
             print("[+] Running Subdomain Enumeration...")
             report['subdomains'] = get_subdomains(domain)
+            write_report(domain, report)
+            check_report_section(report_path, 'subdomains')
 
         elif choice == "4":
             print("[+] Running Nmap Port Scan...")
             report['nmap'] = scan_ports_nmap(domain)
+            write_report(domain, report)
+            check_report_section(report_path, 'nmap')
 
         elif choice == "5":
             print("[+] Running Banner Grabbing...")
@@ -171,15 +198,22 @@ if __name__ == "__main__":
             except socket.gaierror:
                 print("[Error] Failed to resolve domain. Skipping banner grabbing.")
                 report['banners'] = {"error": "Could not resolve domain to IP"}
+            write_report(domain, report)
+            check_report_section(report_path, 'banners')
 
         elif choice == "6":
             print("[+] Running Technology Detection...")
             report['technologies'] = detect_technologies(domain)
+            write_report(domain, report)
+            check_report_section(report_path, 'technologies')
 
         elif choice == "7":
             write_report(domain, report)
-            print("[✓] Exiting. Report generated.")
+            print("[✓] Full report generated.")
+
+        elif choice == "0":
+            print("[✓] Exiting tool. Goodbye!")
             break
 
         else:
-            print("Invalid option. Please choose 1-7.")
+            print("[!] Invalid option. Please choose 0-7.")
