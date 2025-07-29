@@ -143,25 +143,25 @@ def check_report_section(report_path, section_name):
 
 # Main Menu
 if __name__ == "__main__":
-    domain = input("\n🌐 Enter the target domain (e.g., example.com): ")
+    domain = input("\n Enter the target domain (e.g., example.com): ")
     report = {}
     resolved_ip = None
     report_path = f"reports/{domain}_report.txt"
 
     while True:
         print("\n======================")
-        print("  🛠️  RECON TOOL MENU")
+        print(" RECON TOOL MENU")
         print("======================")
         print("1️⃣  WHOIS Lookup")
         print("2️⃣  DNS Enumeration")
         print("3️⃣  Subdomain Enumeration")
         print("4️⃣  Port Scan with Nmap")
         print("5️⃣  Banner Grabbing")
-        print("6️⃣  Technology Detection")
-        print("7️⃣  Generate Report")
-        print("0️⃣  Exit")
+        print("6️⃣ Technology Detection")
+        print("7️⃣ Generate Report")
+        print("8️⃣ Exit")
 
-        choice = input("\n👉 Select an option (0-7): ")
+        choice = input("\n👉 Select an option (1-8): ")
 
         if choice == "1":
             print("[+] Running WHOIS lookup...")
@@ -211,9 +211,9 @@ if __name__ == "__main__":
             write_report(domain, report)
             print("[✓] Full report generated.")
 
-        elif choice == "0":
+        elif choice == "8":
             print("[✓] Exiting tool. Goodbye!")
             break
 
         else:
-            print("[!] Invalid option. Please choose 0-7.")
+            print("[!] Invalid option. Please choose 1-8.")
