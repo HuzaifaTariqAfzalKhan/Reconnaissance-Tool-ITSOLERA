@@ -66,27 +66,22 @@ def scan_ports_nmap(domain):
 # Banner Grabbing
 def grab_banner(ip, port):
     try:
-        s = socket.socket()
-        s.settimeout(2)
-        s.connect((ip, port))
-        banner = s.recv(1024).decode(errors='ignore').strip()
-        s.close()
-        return banner if banner else "No banner returned or restricted"
-    except socket.timeout:
-        return "Timeout - No response"
-    except Exception as e:
-        return f"Error: {e}"
+    ip = socket.gethostbyname(domain)
+except socket.gaierror:
+    logging.error("DNS resolution failed. Skipping banner grabbing.")
+    report['banners'] = {"error": "DNS resolution failed for banner grabbing"}
+    continue
 
 # Technology Detection
 def detect_technologies(domain):
+    headers = {}
     for scheme in ["https", "http"]:
         try:
-            r = requests.get(f"{scheme}://{domain}", timeout=5)
+            r = requests.get(f"{scheme}://{domain}", timeout=5, headers={"User-Agent": "Mozilla/5.0"})
             return dict(r.headers)
         except:
             continue
     return {"Error": "Could not connect or headers restricted"}
-
 # Write Report
 def write_report(domain, data):
     os.makedirs("reports", exist_ok=True)
