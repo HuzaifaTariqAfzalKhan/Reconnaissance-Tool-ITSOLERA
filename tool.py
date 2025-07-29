@@ -36,7 +36,7 @@ def get_subdomains(domain):
     url = f"https://crt.sh/?q=%25.{domain}&output=json"
     subdomains = set()
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=15)
         if r.status_code == 200:
             try:
                 data = r.json()
@@ -66,13 +66,19 @@ def scan_ports_nmap(domain):
 # Banner Grabbing
 def grab_banner(ip, port):
     try:
-    ip = socket.gethostbyname(domain)
-except socket.gaierror:
-    logging.error("DNS resolution failed. Skipping banner grabbing.")
-    report['banners'] = {"error": "DNS resolution failed for banner grabbing"}
-    continue
+        s = socket.socket()
+        s.settimeout(2)
+        s.connect((ip, port))
+        banner = s.recv(1024).decode(errors='ignore').strip()
+        s.close()
+        return banner if banner else "No banner returned or restricted"
+    except socket.timeout:
+        return "Timeout - No response"
+    except Exception as e:
+        return f"Error: {e}"
 
 # Technology Detection
+
 def detect_technologies(domain):
     headers = {}
     for scheme in ["https", "http"]:
@@ -82,6 +88,7 @@ def detect_technologies(domain):
         except:
             continue
     return {"Error": "Could not connect or headers restricted"}
+
 # Write Report
 def write_report(domain, data):
     os.makedirs("reports", exist_ok=True)
@@ -106,6 +113,7 @@ def write_report(domain, data):
 if __name__ == "__main__":
     domain = input("Enter the target domain (e.g., example.com): ")
     report = {}
+    resolved_ip = None
 
     while True:
         print("\n--- Recon Menu ---")
@@ -122,31 +130,39 @@ if __name__ == "__main__":
         if choice == "1":
             print("[+] Running WHOIS lookup...")
             report['whois'] = whois_lookup(domain)
+
         elif choice == "2":
             print("[+] Running DNS Enumeration...")
             report['dns'] = get_dns_records(domain)
+
         elif choice == "3":
             print("[+] Running Subdomain Enumeration...")
             report['subdomains'] = get_subdomains(domain)
+
         elif choice == "4":
             print("[+] Running Nmap Port Scan...")
             report['nmap'] = scan_ports_nmap(domain)
+
         elif choice == "5":
             print("[+] Running Banner Grabbing...")
             try:
-                ip = socket.gethostbyname(domain)
+                if not resolved_ip:
+                    resolved_ip = socket.gethostbyname(domain)
                 ports = [80, 443, 21, 22, 25, 3306]
-                banners = {port: grab_banner(ip, port) for port in ports}
+                banners = {port: grab_banner(resolved_ip, port) for port in ports}
                 report['banners'] = banners
             except socket.gaierror:
                 print("[Error] Failed to resolve domain. Skipping banner grabbing.")
                 report['banners'] = {"error": "Could not resolve domain to IP"}
+
         elif choice == "6":
             print("[+] Running Technology Detection...")
             report['technologies'] = detect_technologies(domain)
+
         elif choice == "7":
             write_report(domain, report)
             print("[✓] Exiting. Report generated.")
             break
+
         else:
             print("Invalid option. Please choose 1-7.")
